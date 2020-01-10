@@ -1,0 +1,18 @@
+[[role]]
+name = "execute"
+
+[[role.rules]]
+apiGroups = [""]
+resources = ["pods/exec"]
+verbs = ["create"]
+
+[[project]]
+namespace="default"
+
+[[project.roles]]
+role = "execute"
+users = [
+  "DC=blah,DC=com,CN=toby lerone",
+  "DC=blah,DC=com,CN=proxy rodriguez",
+  "DC=blah,DC=com,CN=tokyo sexwhale"
+]

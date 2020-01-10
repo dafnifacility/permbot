@@ -1,0 +1,9 @@
+build:
+  image: reg.dafni.rl.ac.uk/dafni/tools/autodocker:latest
+  variables:
+    SNAPSHOT: single
+    BUILD_ARGS: --build-arg VCS_REF --build-arg BUILD_DATE
+  script:
+  - export VCS_REF="$CI_COMMIT_REF"
+  - export BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
+  - /bin/gitlab-docker-autobuild
