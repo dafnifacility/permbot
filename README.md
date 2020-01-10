@@ -28,3 +28,21 @@ Permbot works as follows:
 4. System administrator merges the request (or not).
 5. Permbot automatically creates/revokes Roles/Rolebindings to match the state of the
    repository
+
+## Development
+
+This was written by James Hannah in January 2020. Some tasks that still need doing:
+
+* Rolebindings should be automatically emptied/deleted if the project is removed from
+  the config file. You can currently remove existing permissions by leaving the project
+  in the config file but truncating the list of users to none, but this isn't ideal and
+  is a slight security risk(?)
+* Global permissions should also be handled by permbot
+  (clusterroles/clusterrolebindings)
+* Slack notifications should be sent on changes (but this'd mean detecting when changes
+  were made)
+* Permbot should manage ServiceAccounts as well as User rolebindings - for when pods
+  require specific permissions. This'd mean also automatically creating ServiceAccount
+  objects.
+* Possibly it'd make sense to have the permissions in LDAP or something, instead of in a
+  config file

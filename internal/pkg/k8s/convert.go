@@ -54,17 +54,19 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 					// Skip to the next project role users, because this one doesn't match
 					continue
 				}
-				if len(fromconfig.Projects[pr].Roles[prr].Users) == 0 {
-					// Role matches but no users
-					log.WithFields(log.Fields{
-						"namespace":   fromconfig.Projects[pr].Namespace,
-						"role":        fromconfig.Projects[pr].Roles[prr].Role,
-						"currentRole": rl.Name,
-					}).Debugf("skipping project role because no users defined for it")
-					continue
-				}
-				// The project defines this role, and has users for it, so we define the
-				// resource for the namespace
+				// NOTE: code below disabled because we may want to truncate a rolebinding to
+				// zero users
+				// if len(fromconfig.Projects[pr].Roles[prr].Users) == 0 {
+				// 	// Role matches but no users
+				// 	log.WithFields(log.Fields{
+				// 		"namespace":   fromconfig.Projects[pr].Namespace,
+				// 		"role":        fromconfig.Projects[pr].Roles[prr].Role,
+				// 		"currentRole": rl.Name,
+				// 	}).Debugf("skipping project role because no users defined for it")
+				// 	continue
+				// }
+
+				// The project defines this role so we define the resource for the namespace
 				role := rbacv1.Role{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Role",
@@ -107,6 +109,8 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 					},
 					Subjects: make([]rbacv1.Subject, len(fromconfig.Projects[pr].Roles[prr].Users)),
 				}
+				// NOTE: if the config previously had rolebinding users for this project, but
+				// now doesn't (but is still in the file), they will be removed
 				for rru := range fromconfig.Projects[pr].Roles[prr].Users {
 					rolebinding.Subjects[rru] = rbacv1.Subject{
 						APIGroup: "rbac.authorization.k8s.io",
@@ -117,11 +121,6 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 				rolebindings = append(rolebindings, rolebinding)
 			}
 		}
-		// ru := project.Roles[ri]
-		// if len(ru.Users) == 0 {
-		// 	// No users, skip to the next
-		// 	continue
-		// }
 	}
 	return
 }
