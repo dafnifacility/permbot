@@ -21,14 +21,14 @@ import (
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
 )
 
+// PermbotVersion is used during the build (via -ldflags=-X to set the version)
 var PermbotVersion string
 
 func getVersion() string {
 	if PermbotVersion == "" {
 		return "DEV:UNRELEASED"
-	} else {
-		return PermbotVersion
 	}
+	return PermbotVersion
 }
 
 // RunMain is called by the main package in cmd/permbot and is basically just a replacement for main()
