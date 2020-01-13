@@ -1,3 +1,4 @@
+# This is a role which is used later on in the configuration
 [[role]]
 name = "execute"
 
@@ -6,6 +7,7 @@ apiGroups = [""]
 resources = ["pods/exec"]
 verbs = ["create"]
 
+# This is a sample configuration which uses a role defined above
 [[project]]
 namespace="default"
 
@@ -16,3 +18,54 @@ users = [
   "DC=blah,DC=com,CN=proxy rodriguez",
   "DC=blah,DC=com,CN=tokyo sexwhale"
 ]
+
+# This is a special global role (because it has globalUsers defined) that becomes a
+# ClusterRole. It matches the default "view" role
+[[role]]
+name="view"
+globalUsers = ["DC=blah,DC=com,CN=barry fudge"]
+
+[[role.rules]]
+apiGroups = ["argoproj.io"]
+resources = ["workflows","workflows/finalizers"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["cert-manager.io"]
+resources = ["certificates","certificaterequests","issuers"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = [""]
+resources = ["configmaps","endpoints","persistentvolumeclaims","pods","replicationcontrollers","replicationcontrollers/scale","serviceaccounts","services","namespaces"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = [""]
+resources = ["bindings","events","limitranges","namespaces/status","pods/log","pods/status","replicationcontrollers/status","resourcequotas","resourcequotas/status"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["apps"]
+resources = ["daemonsets","deployments","deployments/scale","replicasets","replicasets/scale","statefulsets","statefulsets/scale","controllerrevisions"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["autoscaling"]
+resources = ["horizontalpodautoscalers"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["batch"]
+resources = ["cronjobs","jobs"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["policy"]
+resources = ["poddisruptionbudgets"]
+verbs = ["get","list","watch"]
+
+[[role.rules]]
+apiGroups = ["networking.k8s.io"]
+resources = ["networkpolicies","ingresses"]
+verbs = ["get","list","watch"]

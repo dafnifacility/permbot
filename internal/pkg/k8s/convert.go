@@ -16,6 +16,68 @@ const (
 	ownerName = "permbot"
 )
 
+// CreateGlobalResources returns the global ClusterRole and ClusterRoleBindings defined by the configuration
+func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.ClusterRole, rolebindings []rbacv1.ClusterRoleBinding, err error) {
+	for i := range fromconfig.Roles {
+		cr := fromconfig.Roles[i]
+		if len(cr.GlobalUsers) > 0 {
+			// At least one GlobalUsers is listed, so we need to define this as a
+			// ClusterRole+ClusterRoleBinding.
+			log.WithField("role_name", cr.Name).Debugf("defining as clusterrole+clusterrolebinding due to %d globalusers", len(cr.GlobalUsers))
+			crole := rbacv1.ClusterRole{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterRole",
+					APIVersion: "rbac.authorization.k8s.io",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("%s-global-%s", roleName, cr.Name),
+					Labels: map[string]string{
+						"owner": ownerName,
+					},
+				},
+				Rules: make([]rbacv1.PolicyRule, len(cr.Rules)),
+			}
+			for crr := range cr.Rules {
+				rule := cr.Rules[crr]
+				crole.Rules[crr] = rbacv1.PolicyRule{
+					APIGroups: rule.APIGroups,
+					Verbs:     rule.Verbs,
+					Resources: rule.Resources,
+				}
+			}
+			roles = append(roles, crole)
+			// Next the CRB
+			crb := rbacv1.ClusterRoleBinding{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterRoleBinding",
+					APIVersion: "rbac.authorization.k8s.io",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("%s-global-binding-%s", roleName, cr.Name),
+					Labels: map[string]string{
+						"owner": ownerName,
+					},
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "ClusterRole",
+					Name:     crole.Name,
+				},
+				Subjects: make([]rbacv1.Subject, len(cr.GlobalUsers)),
+			}
+			for cru := range cr.GlobalUsers {
+				crb.Subjects[cru] = rbacv1.Subject{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "User",
+					Name:     cr.GlobalUsers[cru],
+				}
+			}
+			rolebindings = append(rolebindings, crb)
+		}
+	}
+	return
+}
+
 // CreateResourcesForNamespace creates a set of Roles and a set of RoleBindings for the
 // specified namespace, based on the
 func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (roles []rbacv1.Role, rolebindings []rbacv1.RoleBinding, err error) {

@@ -26,6 +26,7 @@ func RunMain() {
 	var err error
 	mode := flag.String("mode", "yaml", "Mode - either yaml or k8s")
 	flagNamespace := flag.String("namespace", "default", "Namespace - for yaml mode")
+	flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
 	flag.Parse()
 	var pc types.PermbotConfig
 	if cf := flag.Arg(0); cf != "" {
@@ -43,6 +44,7 @@ func RunMain() {
 		if err != nil {
 			log.WithError(err).Fatal("unable to create k8s client")
 		}
+		rbc := cl.RbacV1()
 		nsc := cl.CoreV1().Namespaces()
 		for pcpi := range pc.Projects {
 			pp := pc.Projects[pcpi]
@@ -56,11 +58,10 @@ func RunMain() {
 			if err != nil {
 				log.WithError(err).Error("unable to define resources for namespace")
 			}
-			rbc := cl.RbacV1()
 			for _, rlr := range rl {
 				newrole, err := rbc.Roles(pp.Namespace).Update(&rlr)
 				if err != nil {
-					log.WithError(err).Error("unable to update role")
+					log.WithError(err).WithField("project", &rlr.Name).Error("unable to update role")
 				} else {
 					log.WithFields(log.Fields{
 						"role":      newrole.ObjectMeta.Name,
@@ -71,7 +72,7 @@ func RunMain() {
 			for _, rblr := range rb {
 				newrb, err := rbc.RoleBindings(pp.Namespace).Update(&rblr)
 				if err != nil {
-					log.WithError(err).Error("unable to update rolebinding")
+					log.WithError(err).WithField("project", &rblr.Name).Error("unable to update rolebinding")
 				} else {
 					log.WithFields(log.Fields{
 						"rolebinding": newrb.ObjectMeta.Name,
@@ -80,16 +81,47 @@ func RunMain() {
 				}
 			}
 		}
+		if *flagGlobal {
+			// Done with the namespace-scoped resources, next up is the Global ones
+			crl, crb, err := k8s.CreateGlobalResources(&pc)
+			if err != nil {
+				log.WithError(err).Fatal("unable to create globally scoped resources")
+			}
+			for crli := range crl {
+				newcr, err := rbc.ClusterRoles().Update(&crl[crli])
+				if err != nil {
+					log.WithError(err).WithField("role", crl[crli].Name).Error("unable to update clusterrole")
+				} else {
+					log.WithField("clusterrole", newcr.Name).Info("created/updated clusterrole")
+				}
+			}
+			for crlbi := range crb {
+				newcrb, err := rbc.ClusterRoleBindings().Update(&crb[crlbi])
+				if err != nil {
+					log.WithError(err).WithField("role", &crb[crlbi].Name)
+				} else {
+					log.WithField("clusterrolebinding", newcrb.Name).Info("created/updated clusterrolebinding")
+				}
+			}
+		}
 	case "yaml":
 		rres, rbres, err := k8s.CreateResourcesForNamespace(&pc, *flagNamespace)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.WithField("namespace", *flagNamespace).Fatal("the config file doesn't have roles for the specified namespace")
+				log.WithField("namespace", *flagNamespace).Warn("the config file doesn't have roles for the specified namespace")
 			} else {
 				log.WithError(err).Fatal("Failed to create resources")
 			}
 		}
 		dumpToYaml(rres, rbres)
+		if *flagGlobal {
+			fmt.Println("--")
+			crres, crbres, err := k8s.CreateGlobalResources(&pc)
+			if err != nil {
+				log.WithError(err).Fatal("Failed to create global resources")
+			}
+			dumpGlobalToYaml(crres, crbres)
+		}
 	default:
 		log.Fatal("Unknown mode - use k8s or yaml")
 	}
@@ -103,17 +135,16 @@ func getK8SClient() (*kubernetes.Clientset, error) {
 			return nil, err
 		}
 		return kubernetes.NewForConfig(config)
-	} else {
-		if home := homeDir(); home != "" {
-			kcp := filepath.Join(home, ".kube", "config")
-			if _, err := os.Stat(kcp); err == nil {
-				// File exists
-				config, err := clientcmd.BuildConfigFromFlags("", kcp)
-				if err != nil {
-					return nil, err
-				}
-				return kubernetes.NewForConfig(config)
+	}
+	if home := homeDir(); home != "" {
+		kcp := filepath.Join(home, ".kube", "config")
+		if _, err := os.Stat(kcp); err == nil {
+			// File exists
+			config, err := clientcmd.BuildConfigFromFlags("", kcp)
+			if err != nil {
+				return nil, err
 			}
+			return kubernetes.NewForConfig(config)
 		}
 	}
 	config, err := clientcmd.BuildConfigFromFlags("", "")
@@ -130,9 +161,31 @@ func homeDir() string {
 	return os.Getenv("USERPROFILE") // windows
 }
 
+func dumpGlobalToYaml(crres []rbacv1.ClusterRole, crbres []rbacv1.ClusterRoleBinding) {
+	scheme := runtime.NewScheme()
+	sobj := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme, scheme, json.SerializerOptions{Yaml: true, Pretty: false, Strict: false})
+	first := true
+	for ri := range crres {
+		if !first {
+			fmt.Println("---")
+		} else {
+			first = false
+		}
+		sobj.Encode(&crres[ri], os.Stdout)
+	}
+	for rbi := range crbres {
+		if !first {
+			fmt.Println("---")
+		} else {
+			first = false
+		}
+		sobj.Encode(&crbres[rbi], os.Stdout)
+	}
+}
+
 func dumpToYaml(rres []rbacv1.Role, rbres []rbacv1.RoleBinding) {
 	scheme := runtime.NewScheme()
-	sobj := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme, scheme, json.SerializerOptions{true, false, false})
+	sobj := json.NewSerializerWithOptions(json.DefaultMetaFactory, scheme, scheme, json.SerializerOptions{Yaml: true, Pretty: false, Strict: false})
 	first := true
 	for ri := range rres {
 		if !first {
