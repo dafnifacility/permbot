@@ -21,6 +21,16 @@ import (
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
 )
 
+var PermbotVersion string
+
+func getVersion() string {
+	if PermbotVersion == "" {
+		return "DEV:UNRELEASED"
+	} else {
+		return PermbotVersion
+	}
+}
+
 // RunMain is called by the main package in cmd/permbot and is basically just a replacement for main()
 func RunMain() {
 	var err error
@@ -28,9 +38,14 @@ func RunMain() {
 	flagNamespace := flag.String("namespace", "", "Only dump specific namespace - for yaml mode")
 	flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
 	flagDebug := flag.Bool("debug", false, "Enable debug logging")
+	flagVersion := flag.Bool("version", false, "Exit, only printing Permbot version")
 	flag.Parse()
 	if *flagDebug {
 		log.SetLevel(log.DebugLevel)
+	}
+	log.WithField("version", getVersion()).Info("Permbot")
+	if *flagVersion {
+		return
 	}
 	var pc types.PermbotConfig
 	if cf := flag.Arg(0); cf != "" {
