@@ -1,3 +1,5 @@
+# Example names from https://murrayjames.wordpress.com/good-names/
+
 # This is a role which is used later on in the configuration
 [[role]]
 name = "execute"
@@ -6,6 +8,15 @@ name = "execute"
 apiGroups = [""]
 resources = ["pods/exec"]
 verbs = ["create"]
+
+[[project]]
+namespace="xyzzy"
+
+[[project.roles]]
+role="execute"
+users = [
+  "DC=blah,DC=com,CN=janet warlord"
+]
 
 # This is a sample configuration which uses a role defined above
 [[project]]

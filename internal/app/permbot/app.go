@@ -25,9 +25,13 @@ import (
 func RunMain() {
 	var err error
 	mode := flag.String("mode", "yaml", "Mode - either yaml or k8s")
-	flagNamespace := flag.String("namespace", "default", "Namespace - for yaml mode")
+	flagNamespace := flag.String("namespace", "", "Only dump specific namespace - for yaml mode")
 	flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
+	flagDebug := flag.Bool("debug", false, "Enable debug logging")
 	flag.Parse()
+	if *flagDebug {
+		log.SetLevel(log.DebugLevel)
+	}
 	var pc types.PermbotConfig
 	if cf := flag.Arg(0); cf != "" {
 		err = DecodeFromFile(cf, &pc)
@@ -37,7 +41,7 @@ func RunMain() {
 	if err != nil {
 		log.WithError(err).Fatal("unable to parse")
 	}
-	fmt.Printf("%+v\n", pc)
+	// fmt.Printf("%+v\n", pc)
 	switch *mode {
 	case "k8s":
 		cl, err := getK8SClient()
@@ -105,15 +109,16 @@ func RunMain() {
 			}
 		}
 	case "yaml":
-		rres, rbres, err := k8s.CreateResourcesForNamespace(&pc, *flagNamespace)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.WithField("namespace", *flagNamespace).Warn("the config file doesn't have roles for the specified namespace")
-			} else {
-				log.WithError(err).Fatal("Failed to create resources")
+		if *flagNamespace != "" {
+			log.WithField("namespace", *flagNamespace).Debug("dumping single namespace")
+			dumpYAMLNamespace(&pc, *flagNamespace)
+		} else {
+			log.Debug("no namespace specified - dumping all")
+			for _, nns := range pc.Projects {
+				dumpYAMLNamespace(&pc, nns.Namespace)
+				fmt.Println("--")
 			}
 		}
-		dumpToYaml(rres, rbres)
 		if *flagGlobal {
 			fmt.Println("--")
 			crres, crbres, err := k8s.CreateGlobalResources(&pc)
@@ -125,7 +130,18 @@ func RunMain() {
 	default:
 		log.Fatal("Unknown mode - use k8s or yaml")
 	}
+}
 
+func dumpYAMLNamespace(pc *types.PermbotConfig, ns string) {
+	rres, rbres, err := k8s.CreateResourcesForNamespace(pc, ns)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.WithField("namespace", ns).Warn("the config file doesn't have roles for the specified namespace")
+		} else {
+			log.WithError(err).Fatal("Failed to create resources")
+		}
+	}
+	dumpToYaml(rres, rbres)
 }
 
 func getK8SClient() (*kubernetes.Clientset, error) {

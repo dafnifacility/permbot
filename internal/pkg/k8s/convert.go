@@ -85,7 +85,13 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 	// First we need to find the applicable project
 	for i := range fromconfig.Projects {
 		if fromconfig.Projects[i].Namespace == ns {
+			log.WithField("project", fromconfig.Projects[i].Namespace).Debug("selected single project via ns")
 			project = &fromconfig.Projects[i]
+		} else {
+			log.WithFields(log.Fields{
+				"configProject":    fromconfig.Projects[i].Namespace,
+				"desiredNamespace": ns,
+			}).Debug("skipping project because not a match for target")
 		}
 	}
 	if project == nil {
@@ -114,6 +120,13 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						"currentRole": rl.Name,
 					}).Debugf("skipping project role because not a match to current role")
 					// Skip to the next project role users, because this one doesn't match
+					continue
+				}
+				if fromconfig.Projects[pr].Namespace != project.Namespace {
+					log.WithFields(log.Fields{
+						"project":   fromconfig.Projects[pr].Namespace,
+						"desiredNs": project.Namespace,
+					}).Debug("skipping project roles as not a match")
 					continue
 				}
 				// NOTE: code below disabled because we may want to truncate a rolebinding to
