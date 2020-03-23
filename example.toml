@@ -30,6 +30,24 @@ users = [
   "DC=blah,DC=com,CN=tokyo sexwhale"
 ]
 
+# This is a sample configuration which also has serviceAccounts
+[[project]]
+namespace="default"
+
+[[project.roles]]
+role = "execute"
+users = [
+  "DC=blah,DC=com,CN=toby lerone",
+  "DC=blah,DC=com,CN=proxy rodriguez",
+  "DC=blah,DC=com,CN=tokyo sexwhale"
+]
+serviceAccounts = [
+  # One in the same NS as the project
+  "someserviceaccount",
+  # One in a different NS
+  "otherns:someserviceaccount"
+]
+
 # This is a special global role (because it has globalUsers defined) that becomes a
 # ClusterRole. It matches the default "view" role
 [[role]]

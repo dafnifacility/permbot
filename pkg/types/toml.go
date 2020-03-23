@@ -15,8 +15,9 @@ type Project struct {
 
 // RoleUsers links a Role to a set of Users
 type RoleUsers struct {
-	Role  string   `toml:"role" json:"role"`
-	Users []string `toml:"users" json:"users"`
+	Role            string   `toml:"role" json:"role"`
+	Users           []string `toml:"users" json:"users"`
+	ServiceAccounts []string `toml:"serviceAccounts" json:"serviceAccounts"`
 }
 
 // Role is a defined Role (or ClusterRole, if global users are specified)

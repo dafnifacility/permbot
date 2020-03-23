@@ -3,6 +3,7 @@ package k8s
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -182,7 +183,7 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						Kind:     "Role",
 						Name:     role.Name,
 					},
-					Subjects: make([]rbacv1.Subject, len(fromconfig.Projects[pr].Roles[prr].Users)),
+					Subjects: make([]rbacv1.Subject, len(fromconfig.Projects[pr].Roles[prr].Users)+len(fromconfig.Projects[pr].Roles[prr].ServiceAccounts)),
 				}
 				// NOTE: if the config previously had rolebinding users for this project, but
 				// now doesn't (but is still in the file), they will be removed
@@ -191,6 +192,23 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						APIGroup: "rbac.authorization.k8s.io",
 						Kind:     "User",
 						Name:     fromconfig.Projects[pr].Roles[prr].Users[rru],
+					}
+				}
+				// Need to offset the set-index by this count to not whallop Users
+				cusers := len(fromconfig.Projects[pr].Roles[prr].Users)
+				for rrsa := range fromconfig.Projects[pr].Roles[prr].ServiceAccounts {
+					saname := fromconfig.Projects[pr].Roles[prr].ServiceAccounts[rrsa]
+					sans := fromconfig.Projects[pr].Namespace
+					if strings.Contains(saname, ":") {
+						ps := strings.SplitN(saname, ":", 2)
+						sans = ps[0]
+						saname = ps[1]
+					}
+					rolebinding.Subjects[cusers+rrsa] = rbacv1.Subject{
+						APIGroup:  "",
+						Kind:      "ServiceAccount",
+						Name:      saname,
+						Namespace: sans,
 					}
 				}
 				rolebindings = append(rolebindings, rolebinding)
