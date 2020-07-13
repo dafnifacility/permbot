@@ -29,6 +29,8 @@ func RunMain() {
 	flagNamespace := flag.String("namespace", "", "Only dump specific namespace - for yaml mode")
 	flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
 	flagDebug := flag.Bool("debug", false, "Enable debug logging")
+	flagOwner := flag.String("owner", "permbot", "Owner value for Kubernetes label")
+	flagRulesRef := flag.String("ref", "", "Version of input repository to include in rule annotations (dafni.ac.uk/permbot-rules-ref)")
 	flagVersion := flag.Bool("version", false, "Exit, only printing Permbot version")
 	flag.Parse()
 	if *flagDebug {
@@ -64,7 +66,7 @@ func RunMain() {
 				continue
 			}
 			// namespace exists - create the resources
-			rl, rb, err := k8s.CreateResourcesForNamespace(&pc, pp.Namespace)
+			rl, rb, err := k8s.CreateResourcesForNamespace(&pc, pp.Namespace, *flagRulesRef, *flagOwner)
 			if err != nil {
 				log.WithError(err).Error("unable to define resources for namespace")
 			}
@@ -93,7 +95,7 @@ func RunMain() {
 		}
 		if *flagGlobal {
 			// Done with the namespace-scoped resources, next up is the Global ones
-			crl, crb, err := k8s.CreateGlobalResources(&pc)
+			crl, crb, err := k8s.CreateGlobalResources(&pc, *flagRulesRef, *flagOwner)
 			if err != nil {
 				log.WithError(err).Fatal("unable to create globally scoped resources")
 			}
@@ -117,17 +119,17 @@ func RunMain() {
 	case "yaml":
 		if *flagNamespace != "" {
 			log.WithField("namespace", *flagNamespace).Debug("dumping single namespace")
-			dumpYAMLNamespace(&pc, *flagNamespace)
+			dumpYAMLNamespace(&pc, *flagNamespace, *flagRulesRef, *flagOwner)
 		} else {
 			log.Debug("no namespace specified - dumping all")
 			for _, nns := range pc.Projects {
-				dumpYAMLNamespace(&pc, nns.Namespace)
+				dumpYAMLNamespace(&pc, nns.Namespace, *flagRulesRef, *flagOwner)
 				fmt.Println("--")
 			}
 		}
 		if *flagGlobal {
 			fmt.Println("--")
-			crres, crbres, err := k8s.CreateGlobalResources(&pc)
+			crres, crbres, err := k8s.CreateGlobalResources(&pc, *flagRulesRef, *flagOwner)
 			if err != nil {
 				log.WithError(err).Fatal("Failed to create global resources")
 			}
@@ -138,8 +140,8 @@ func RunMain() {
 	}
 }
 
-func dumpYAMLNamespace(pc *types.PermbotConfig, ns string) {
-	rres, rbres, err := k8s.CreateResourcesForNamespace(pc, ns)
+func dumpYAMLNamespace(pc *types.PermbotConfig, ns, rulesRef, owner string) {
+	rres, rbres, err := k8s.CreateResourcesForNamespace(pc, ns, rulesRef, owner)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.WithField("namespace", ns).Warn("the config file doesn't have roles for the specified namespace")
