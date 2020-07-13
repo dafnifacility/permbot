@@ -9,7 +9,7 @@ PKGS := $(shell go list ./...)
 
 .PHONY: permbot
 permbot:
-	go build -ldflags="-X gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app/permbot.PermbotVersion=$(GIT_DESCRIBE)" -o permbot ./cmd/permbot
+	go build -ldflags="-X gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app.PermbotVersion=$(GIT_DESCRIBE)" -o permbot ./cmd/permbot
 
 .PHONY: test coverage
 test:

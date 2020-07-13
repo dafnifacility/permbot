@@ -9,6 +9,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
 )
 
@@ -16,6 +17,21 @@ const (
 	roleName  = "permbot-auto-role"
 	ownerName = "permbot"
 )
+
+// objectAnnotations returns the default annotations to be added to all created objects,
+// which contain the version of permbot used to create them.
+func objectAnnotations() map[string]string {
+	return map[string]string{
+		"dafni.ac.uk/permbot-version": app.Version(),
+	}
+}
+
+// objectLabels returns the default labels to be added to all created objects.
+func objectLabels() map[string]string {
+	return map[string]string{
+		"dafni.ac.uk/permbot-owner": "permbot",
+	}
+}
 
 // CreateGlobalResources returns the global ClusterRole and ClusterRoleBindings defined by the configuration
 func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.ClusterRole, rolebindings []rbacv1.ClusterRoleBinding, err error) {
@@ -31,10 +47,9 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.Clus
 					APIVersion: "rbac.authorization.k8s.io",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("%s-global-%s", roleName, cr.Name),
-					Labels: map[string]string{
-						"owner": ownerName,
-					},
+					Name:        fmt.Sprintf("%s-global-%s", roleName, cr.Name),
+					Labels:      objectLabels(),
+					Annotations: objectAnnotations(),
 				},
 				Rules: make([]rbacv1.PolicyRule, len(cr.Rules)),
 			}
@@ -54,10 +69,9 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.Clus
 					APIVersion: "rbac.authorization.k8s.io",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("%s-global-binding-%s", roleName, cr.Name),
-					Labels: map[string]string{
-						"owner": ownerName,
-					},
+					Name:        fmt.Sprintf("%s-global-binding-%s", roleName, cr.Name),
+					Labels:      objectLabels(),
+					Annotations: objectAnnotations(),
 				},
 				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
@@ -149,11 +163,10 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						APIVersion: "rbac.authorization.k8s.io",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", roleName, rl.Name),
-						Namespace: fromconfig.Projects[pr].Namespace,
-						Labels: map[string]string{
-							"owner": ownerName,
-						},
+						Name:        fmt.Sprintf("%s-%s", roleName, rl.Name),
+						Namespace:   fromconfig.Projects[pr].Namespace,
+						Labels:      objectLabels(),
+						Annotations: objectAnnotations(),
 					},
 					Rules: make([]rbacv1.PolicyRule, len(rl.Rules)),
 				}
@@ -172,11 +185,10 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						APIVersion: "rbac.authorization.k8s.io",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-binding-%s", roleName, rl.Name),
-						Namespace: fromconfig.Projects[pr].Namespace,
-						Labels: map[string]string{
-							"owner": ownerName,
-						},
+						Name:        fmt.Sprintf("%s-binding-%s", roleName, rl.Name),
+						Namespace:   fromconfig.Projects[pr].Namespace,
+						Labels:      objectLabels(),
+						Annotations: objectAnnotations(),
 					},
 					RoleRef: rbacv1.RoleRef{
 						APIGroup: "rbac.authorization.k8s.io",

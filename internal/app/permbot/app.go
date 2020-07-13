@@ -17,19 +17,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/pkg/k8s"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
 )
-
-// PermbotVersion is used during the build (via -ldflags=-X to set the version)
-var PermbotVersion string
-
-func getVersion() string {
-	if PermbotVersion == "" {
-		return "DEV:UNRELEASED"
-	}
-	return PermbotVersion
-}
 
 // RunMain is called by the main package in cmd/permbot and is basically just a replacement for main()
 func RunMain() {
@@ -43,7 +34,7 @@ func RunMain() {
 	if *flagDebug {
 		log.SetLevel(log.DebugLevel)
 	}
-	log.WithField("version", getVersion()).Info("Permbot")
+	log.WithField("version", app.Version()).Info("Permbot")
 	if *flagVersion {
 		return
 	}
