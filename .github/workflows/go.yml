@@ -3,8 +3,10 @@ name: Go
 on:
   push:
     branches: [master]
+    tags: ["v*"]
   pull_request:
     branches: [master]
+    tags: ["v*"]
 
 jobs:
   build:
@@ -25,11 +27,15 @@ jobs:
 
       - name: Test
         run: make test
-
+  publish:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    steps:
       - uses: docker/build-push-action@v1
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
-          repository: dafnifacility/permbot
+          repository: dafnifacility/permbot/permbot
           tags: latest
+          tag_with_ref: true
