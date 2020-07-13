@@ -30,5 +30,6 @@ jobs:
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
           repository: dafnifacility/permbot
           tags: latest
