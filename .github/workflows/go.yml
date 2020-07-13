@@ -22,5 +22,13 @@ jobs:
 
       - name: Build
         run: make
-      # - name: Test
-      #   run: make test
+
+      - name: Test
+        run: make test
+
+      - uses: docker/build-push-action@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          repository: dafnifacility/permbot
+          tags: latest
