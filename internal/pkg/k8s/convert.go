@@ -28,7 +28,7 @@ func objectAnnotations(rulesRef string) map[string]string {
 		"dafni.ac.uk/permbot-version": app.Version(),
 	}
 	if rulesRef != "" {
-		annotations["dafni.ac.uk/rules-ref"] = rulesRef
+		annotations["dafni.ac.uk/permbot-rules-ref"] = rulesRef
 	}
 	return annotations
 }
