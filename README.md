@@ -29,7 +29,34 @@ Permbot works as follows:
    namespace
 4. System administrator merges the request (or not).
 5. Permbot automatically creates/revokes Roles/Rolebindings to match the state of the
-   repository
+   repository via Kubernetes `update` operations.
+
+### Command-line options
+
+```
+Usage of ./permbot:
+  -debug
+    	Enable debug logging
+  -global
+    	Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding) (default true)
+  -mode string
+    	Mode - either yaml or k8s (default "yaml")
+  -namespace string
+    	Only dump specific namespace - for yaml mode
+  -owner string
+    	Owner value for Kubernetes label (default "permbot")
+  -ref string
+    	Version of input repository to include in rule annotations (dafni.ac.uk/permbot-rules-ref)
+  -version
+    	Exit, only printing Permbot version
+```
+
+Note that the `-ref` flag can be used to add a rules "reference" version as an
+annotation to create resources, this can be used to track the (e.g) Git SHA of a
+commit/tag used to perform a deployment.
+
+Additionally, the `-owner` flag can be used to manipulate a label on created objects,
+which could be used to search for objects created by a particular invocation of Permbot.
 
 ## Development
 

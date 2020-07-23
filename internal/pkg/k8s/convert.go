@@ -9,6 +9,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
 )
 
@@ -17,8 +18,30 @@ const (
 	ownerName = "permbot"
 )
 
+// objectAnnotations returns the default annotations to be added to all created objects,
+// which contain the version of permbot used to create them.
+//
+// The option rulesVersion parameter can be used to add an annotation containing the
+// version of input config used to generate the rules (if non-empty).
+func objectAnnotations(rulesRef string) map[string]string {
+	annotations := map[string]string{
+		"dafni.ac.uk/permbot-version": app.Version(),
+	}
+	if rulesRef != "" {
+		annotations["dafni.ac.uk/rules-ref"] = rulesRef
+	}
+	return annotations
+}
+
+// objectLabels returns the default labels to be added to all created objects.
+func objectLabels(ownerName string) map[string]string {
+	return map[string]string{
+		"dafni.ac.uk/permbot-owner": ownerName,
+	}
+}
+
 // CreateGlobalResources returns the global ClusterRole and ClusterRoleBindings defined by the configuration
-func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.ClusterRole, rolebindings []rbacv1.ClusterRoleBinding, err error) {
+func CreateGlobalResources(fromconfig *types.PermbotConfig, rulesRef, owner string) (roles []rbacv1.ClusterRole, rolebindings []rbacv1.ClusterRoleBinding, err error) {
 	for i := range fromconfig.Roles {
 		cr := fromconfig.Roles[i]
 		if len(cr.GlobalUsers) > 0 {
@@ -31,10 +54,9 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.Clus
 					APIVersion: "rbac.authorization.k8s.io",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("%s-global-%s", roleName, cr.Name),
-					Labels: map[string]string{
-						"owner": ownerName,
-					},
+					Name:        fmt.Sprintf("%s-global-%s", roleName, cr.Name),
+					Labels:      objectLabels(owner),
+					Annotations: objectAnnotations(rulesRef),
 				},
 				Rules: make([]rbacv1.PolicyRule, len(cr.Rules)),
 			}
@@ -54,10 +76,9 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.Clus
 					APIVersion: "rbac.authorization.k8s.io",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("%s-global-binding-%s", roleName, cr.Name),
-					Labels: map[string]string{
-						"owner": ownerName,
-					},
+					Name:        fmt.Sprintf("%s-global-binding-%s", roleName, cr.Name),
+					Labels:      objectLabels(owner),
+					Annotations: objectAnnotations(rulesRef),
 				},
 				RoleRef: rbacv1.RoleRef{
 					APIGroup: "rbac.authorization.k8s.io",
@@ -81,7 +102,7 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig) (roles []rbacv1.Clus
 
 // CreateResourcesForNamespace creates a set of Roles and a set of RoleBindings for the
 // specified namespace, based on the
-func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (roles []rbacv1.Role, rolebindings []rbacv1.RoleBinding, err error) {
+func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns, rulesRef, ownerName string) (roles []rbacv1.Role, rolebindings []rbacv1.RoleBinding, err error) {
 	var project *types.Project
 	// First we need to find the applicable project
 	for i := range fromconfig.Projects {
@@ -149,11 +170,10 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						APIVersion: "rbac.authorization.k8s.io",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-%s", roleName, rl.Name),
-						Namespace: fromconfig.Projects[pr].Namespace,
-						Labels: map[string]string{
-							"owner": ownerName,
-						},
+						Name:        fmt.Sprintf("%s-%s", roleName, rl.Name),
+						Namespace:   fromconfig.Projects[pr].Namespace,
+						Labels:      objectLabels(ownerName),
+						Annotations: objectAnnotations(rulesRef),
 					},
 					Rules: make([]rbacv1.PolicyRule, len(rl.Rules)),
 				}
@@ -172,11 +192,10 @@ func CreateResourcesForNamespace(fromconfig *types.PermbotConfig, ns string) (ro
 						APIVersion: "rbac.authorization.k8s.io",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("%s-binding-%s", roleName, rl.Name),
-						Namespace: fromconfig.Projects[pr].Namespace,
-						Labels: map[string]string{
-							"owner": ownerName,
-						},
+						Name:        fmt.Sprintf("%s-binding-%s", roleName, rl.Name),
+						Namespace:   fromconfig.Projects[pr].Namespace,
+						Labels:      objectLabels(ownerName),
+						Annotations: objectAnnotations(rulesRef),
 					},
 					RoleRef: rbacv1.RoleRef{
 						APIGroup: "rbac.authorization.k8s.io",
