@@ -46,3 +46,11 @@ jobs:
           repository: dafnifacility/permbot/permbot
           tags: latest
           tag_with_ref: true
+      - uses: docker/build-push-action@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.CR_PAT }}
+          registry: ghcr.io
+          repository: dafnifacility/permbot/permbot
+          tags: latest
+          tag_with_ref: true
