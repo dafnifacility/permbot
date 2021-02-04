@@ -22,9 +22,10 @@ type RoleUsers struct {
 
 // Role is a defined Role (or ClusterRole, if global users are specified)
 type Role struct {
-	Name        string   `toml:"name" json:"name"`
-	Rules       []Rule   `toml:"rules" json:"rules"`
-	GlobalUsers []string `toml:"globalUsers" json:"globalUsers"`
+	Name                  string   `toml:"name" json:"name"`
+	Rules                 []Rule   `toml:"rules" json:"rules"`
+	GlobalUsers           []string `toml:"globalUsers" json:"globalUsers"`
+	GlobalServiceAccounts []string `toml:"globalServiceAccounts" json:"globalServiceAccounts"`
 }
 
 // Rule is a specific rule allowed as part of a Role/ClusterRole
