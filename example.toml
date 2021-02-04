@@ -48,6 +48,18 @@ serviceAccounts = [
   "otherns:someserviceaccount"
 ]
 
+
+# This is a special global role (because it has globalServiceAccounts defined) that becomes a
+# ClusterRole.
+[[role]]
+name="view"
+globalServiceAccounts = ["some-namspace:some-service-account"]
+
+[[role.rules]]
+apiGroups = [""]
+resources = ["configmaps"]
+verbs = ["get","list","watch"]
+
 # This is a special global role (because it has globalUsers defined) that becomes a
 # ClusterRole. It matches the default "view" role
 [[role]]
