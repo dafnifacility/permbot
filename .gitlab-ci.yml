@@ -1,5 +1,16 @@
+stages:
+- test
+- build
+
+test:
+  image: golang:1
+  stage: test
+  script:
+  - make coverage
+
 build:
   image: reg.dafni.rl.ac.uk/dafni/tools/autodocker:latest
+  stage: build
   variables:
     SNAPSHOT: single
     BUILD_ARGS: --build-arg VCS_REF --build-arg BUILD_DATE
