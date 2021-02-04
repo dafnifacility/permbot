@@ -111,7 +111,7 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig, rulesRef, owner stri
 					nsnparts[0] = "default"
 				}
 				crb.Subjects[i] = rbacv1.Subject{
-					APIGroup:  "rbac.authorization.k8s.io",
+					APIGroup:  "",
 					Kind:      "ServiceAccount",
 					Name:      nsnparts[1],
 					Namespace: nsnparts[0],
