@@ -1,5 +1,13 @@
 # Permbot Changelog
 
+## v1.2.0
+
+This is a feature release of Permbot.
+
+New Features:
+- `role` objects can now contain a new field `globalServiceAccounts`, which will cause a ClusterRole to be created containing the ServiceAccounts specified. ServiceAccounts should be specified as `namespace:serviceaccountname`.
+- Some tests have been added, and are now run automatically in the CI
+  
 ## v1.1.1
 
 This is the initial public release of Permbot, which is now mirrored from the private DAFNI
