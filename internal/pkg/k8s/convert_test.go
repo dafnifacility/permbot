@@ -69,7 +69,7 @@ func TestCreateGlobalResources(t *testing.T) {
 					},
 					Subjects: []rbacv1.Subject{
 						{
-							APIGroup:  "rbac.authorization.k8s.io",
+							APIGroup:  "",
 							Kind:      "ServiceAccount",
 							Name:      "foo",
 							Namespace: "x",
@@ -185,7 +185,7 @@ func TestCreateGlobalResources(t *testing.T) {
 							Name:     "CN=x,DC=example,DC=com",
 						},
 						{
-							APIGroup:  "rbac.authorization.k8s.io",
+							APIGroup:  "",
 							Kind:      "ServiceAccount",
 							Namespace: "default",
 							Name:      "whatever",
