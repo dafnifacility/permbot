@@ -102,10 +102,19 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig, rulesRef, owner stri
 			}
 			// Then add the global service accounts, these have to be prefixed with the namespace
 			for crsa := range cr.GlobalServiceAccounts {
+				nsnparts := strings.SplitN(cr.GlobalServiceAccounts[crsa], ":", 2)
+				if len(nsnparts) == 1 {
+					nsnparts = append(nsnparts, nsnparts[0])
+					nsnparts[0] = "default"
+				} else if nsnparts[1] == "" {
+					nsnparts[1] = nsnparts[0]
+					nsnparts[0] = "default"
+				}
 				crb.Subjects[i] = rbacv1.Subject{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ServiceAccount",
-					Name:     cr.GlobalUsers[crsa],
+					APIGroup:  "rbac.authorization.k8s.io",
+					Kind:      "ServiceAccount",
+					Name:      nsnparts[1],
+					Namespace: nsnparts[0],
 				}
 				i++
 			}
