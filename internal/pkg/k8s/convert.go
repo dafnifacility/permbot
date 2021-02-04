@@ -44,10 +44,11 @@ func objectLabels(ownerName string) map[string]string {
 func CreateGlobalResources(fromconfig *types.PermbotConfig, rulesRef, owner string) (roles []rbacv1.ClusterRole, rolebindings []rbacv1.ClusterRoleBinding, err error) {
 	for i := range fromconfig.Roles {
 		cr := fromconfig.Roles[i]
-		if len(cr.GlobalUsers) > 0 {
-			// At least one GlobalUsers is listed, so we need to define this as a
+		subjectCount := len(cr.GlobalUsers) + len(cr.GlobalServiceAccounts)
+		if subjectCount > 0 {
+			// At least one GlobalUsers/GlobalServiceAccounts is listed, so we need to define this as a
 			// ClusterRole+ClusterRoleBinding.
-			log.WithField("role_name", cr.Name).Debugf("defining as clusterrole+clusterrolebinding due to %d globalusers", len(cr.GlobalUsers))
+			log.WithField("role_name", cr.Name).Debugf("defining as clusterrole+clusterrolebinding due to %d global subjects", subjectCount)
 			crole := rbacv1.ClusterRole{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ClusterRole",
@@ -85,14 +86,45 @@ func CreateGlobalResources(fromconfig *types.PermbotConfig, rulesRef, owner stri
 					Kind:     "ClusterRole",
 					Name:     crole.Name,
 				},
-				Subjects: make([]rbacv1.Subject, len(cr.GlobalUsers)),
+				Subjects: make([]rbacv1.Subject, subjectCount),
 			}
+			// i is just a runnning count of the number of subjects we've added to subjects so far.
+			// it should eventually be the same as subjectCount so we check for that later
+			i := 0
+			// First add the globalUsers. Note that cru/crsa in the two loops below is the array index (an int)
 			for cru := range cr.GlobalUsers {
-				crb.Subjects[cru] = rbacv1.Subject{
+				crb.Subjects[i] = rbacv1.Subject{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "User",
 					Name:     cr.GlobalUsers[cru],
 				}
+				i++
+			}
+			// Then add the global service accounts, these have to be prefixed with the namespace
+			for crsa := range cr.GlobalServiceAccounts {
+				nsnparts := strings.SplitN(cr.GlobalServiceAccounts[crsa], ":", 2)
+				if len(nsnparts) == 1 {
+					nsnparts = append(nsnparts, nsnparts[0])
+					nsnparts[0] = "default"
+				} else if nsnparts[1] == "" {
+					nsnparts[1] = nsnparts[0]
+					nsnparts[0] = "default"
+				}
+				crb.Subjects[i] = rbacv1.Subject{
+					APIGroup:  "rbac.authorization.k8s.io",
+					Kind:      "ServiceAccount",
+					Name:      nsnparts[1],
+					Namespace: nsnparts[0],
+				}
+				i++
+			}
+			// Catch the unlikely event that we didn't fully complete the set of subjects
+			if i != subjectCount {
+				log.WithFields(log.Fields{
+					"subjects-count": subjectCount,
+					"subjects-added": i,
+					"global-role":    roleName,
+				}).Fatal("subject count mismatch when adding subjects to global role")
 			}
 			rolebindings = append(rolebindings, crb)
 		}
