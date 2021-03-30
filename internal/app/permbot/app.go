@@ -1,21 +1,17 @@
 package permbot
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/BurntSushi/toml"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/pkg/k8s"
@@ -24,6 +20,7 @@ import (
 
 // RunMain is called by the main package in cmd/permbot and is basically just a replacement for main()
 func RunMain() {
+	ctx := context.Background()
 	var err error
 	mode := flag.String("mode", "yaml", "Mode - either yaml or k8s")
 	flagNamespace := flag.String("namespace", "", "Only dump specific namespace - for yaml mode")
@@ -42,7 +39,7 @@ func RunMain() {
 	}
 	var pc types.PermbotConfig
 	if cf := flag.Arg(0); cf != "" {
-		err = DecodeFromFile(cf, &pc)
+		err = app.DecodeFromFile(cf, &pc)
 	} else {
 		log.Fatal("specify permbot config file on commandline")
 	}
@@ -52,7 +49,7 @@ func RunMain() {
 	// fmt.Printf("%+v\n", pc)
 	switch *mode {
 	case "k8s":
-		cl, err := getK8SClient()
+		cl, err := app.GetK8SClient()
 		if err != nil {
 			log.WithError(err).Fatal("unable to create k8s client")
 		}
@@ -60,7 +57,7 @@ func RunMain() {
 		nsc := cl.CoreV1().Namespaces()
 		for pcpi := range pc.Projects {
 			pp := pc.Projects[pcpi]
-			_, err := nsc.Get(pp.Namespace, v1.GetOptions{})
+			_, err := nsc.Get(ctx, pp.Namespace, v1.GetOptions{})
 			if err != nil {
 				log.WithField("namespace", pp.Namespace).WithError(err).Error("problem with namespace - doesn't exist?")
 				continue
@@ -71,7 +68,7 @@ func RunMain() {
 				log.WithError(err).Error("unable to define resources for namespace")
 			}
 			for _, rlr := range rl {
-				newrole, err := rbc.Roles(pp.Namespace).Update(&rlr)
+				newrole, err := rbc.Roles(pp.Namespace).Update(ctx, &rlr, v1.UpdateOptions{})
 				if err != nil {
 					log.WithError(err).WithField("project", &rlr.Name).Error("unable to update role")
 				} else {
@@ -82,7 +79,7 @@ func RunMain() {
 				}
 			}
 			for _, rblr := range rb {
-				newrb, err := rbc.RoleBindings(pp.Namespace).Update(&rblr)
+				newrb, err := rbc.RoleBindings(pp.Namespace).Update(ctx, &rblr, v1.UpdateOptions{})
 				if err != nil {
 					log.WithError(err).WithField("project", &rblr.Name).Error("unable to update rolebinding")
 				} else {
@@ -100,7 +97,7 @@ func RunMain() {
 				log.WithError(err).Fatal("unable to create globally scoped resources")
 			}
 			for crli := range crl {
-				newcr, err := rbc.ClusterRoles().Update(&crl[crli])
+				newcr, err := rbc.ClusterRoles().Update(ctx, &crl[crli], v1.UpdateOptions{})
 				if err != nil {
 					log.WithError(err).WithField("role", crl[crli].Name).Error("unable to update clusterrole")
 				} else {
@@ -108,7 +105,7 @@ func RunMain() {
 				}
 			}
 			for crlbi := range crb {
-				newcrb, err := rbc.ClusterRoleBindings().Update(&crb[crlbi])
+				newcrb, err := rbc.ClusterRoleBindings().Update(ctx, &crb[crlbi], v1.UpdateOptions{})
 				if err != nil {
 					log.WithError(err).WithField("role", &crb[crlbi].Name)
 				} else {
@@ -150,39 +147,6 @@ func dumpYAMLNamespace(pc *types.PermbotConfig, ns, rulesRef, owner string) {
 		}
 	}
 	dumpToYaml(rres, rbres)
-}
-
-func getK8SClient() (*kubernetes.Clientset, error) {
-	if kc, isset := os.LookupEnv("KUBECONFIG"); isset {
-		config, err := clientcmd.BuildConfigFromFlags("", kc)
-		if err != nil {
-			return nil, err
-		}
-		return kubernetes.NewForConfig(config)
-	}
-	if home := homeDir(); home != "" {
-		kcp := filepath.Join(home, ".kube", "config")
-		if _, err := os.Stat(kcp); err == nil {
-			// File exists
-			config, err := clientcmd.BuildConfigFromFlags("", kcp)
-			if err != nil {
-				return nil, err
-			}
-			return kubernetes.NewForConfig(config)
-		}
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", "")
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewForConfig(config)
-}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
 }
 
 func dumpGlobalToYaml(crres []rbacv1.ClusterRole, crbres []rbacv1.ClusterRoleBinding) {
@@ -228,17 +192,4 @@ func dumpToYaml(rres []rbacv1.Role, rbres []rbacv1.RoleBinding) {
 		sobj.Encode(&rbres[rbi], os.Stdout)
 	}
 	// fmt.Printf("roles:\n%+v\n\nrolebindings:\n%+v\n", rres, rbres)
-}
-
-// DecodeFromFile decodes a file from `fn` into the PermbotConfig pointer `into`
-func DecodeFromFile(fn string, into *types.PermbotConfig) error {
-	f, err := os.Open(fn)
-	if err != nil {
-		return errors.Wrap(err, "unable to open config")
-	}
-	_, err = toml.DecodeReader(f, into)
-	if err != nil {
-		return errors.Wrap(err, "unable to decode config")
-	}
-	return err
 }
