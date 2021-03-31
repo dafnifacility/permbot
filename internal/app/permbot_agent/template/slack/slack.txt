@@ -1,0 +1,5 @@
+{{ if .Success }}
+:tada: Permbot config applied successfully!
+{{ else }}
+:fire: Permbot configuration failed!
+{{ end }}

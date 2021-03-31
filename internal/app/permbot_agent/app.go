@@ -2,11 +2,21 @@ package permbot_agent
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	htemplate "html/template"
+	"net/http"
 	"os"
 	"strings"
+	"text/template"
+	"time"
 
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"github.com/slack-go/slack"
 	"github.com/urfave/cli/v2"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/pkg/k8s"
@@ -17,8 +27,12 @@ import (
 )
 
 const (
-	configMapKey     = "permbot.toml"
-	flagOwnerRefName = "owner"
+	configMapKey          = "permbot.toml"
+	flagOwnerRefName      = "owner"
+	flagSlackWebhookURL   = "slack-webhook"
+	flagJSONLogs          = "json-logs"
+	flagDebug             = "debug"
+	flagHTTPListenAddress = "http-listen"
 )
 
 var (
@@ -30,10 +44,19 @@ var (
 	}
 )
 
+//go:embed template/*
+var templates embed.FS
+
 type PermbotAgent struct {
-	kclient       *kubernetes.Clientset
-	configMapName v1.ObjectMeta
-	ownerRef      string
+	kclient         *kubernetes.Clientset
+	configMapName   v1.ObjectMeta
+	ownerRef        string
+	slackWebhookURL string
+
+	metrics struct {
+		changeCount *prometheus.CounterVec
+		applyTime   prometheus.Histogram
+	}
 }
 
 func CreateAgent(cc *cli.Context) (*PermbotAgent, error) {
@@ -42,11 +65,62 @@ func CreateAgent(cc *cli.Context) (*PermbotAgent, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PermbotAgent{
-		kclient:       cl,
-		configMapName: cmmd,
-		ownerRef:      cc.String(flagOwnerRefName),
-	}, nil
+
+	pa := &PermbotAgent{
+		kclient:         cl,
+		configMapName:   cmmd,
+		ownerRef:        cc.String(flagOwnerRefName),
+		slackWebhookURL: cc.String(flagSlackWebhookURL),
+	}
+	pa.setupMetrics()
+	pa.setupHTTP(cc.String(flagHTTPListenAddress))
+	return pa, nil
+}
+
+func (pa *PermbotAgent) setupMetrics() {
+	pa.metrics.changeCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "permbot",
+		Subsystem: "agent",
+		Name:      "changes_applied",
+		Help:      "Count of times the rules have been applied (success/error)",
+	}, []string{"outcome"})
+	pa.metrics.applyTime = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "permbot",
+		Subsystem: "agent",
+		Name:      "applytime_secs",
+		Help:      "Time taken in seconds to apply the rules to Kubernetes following their conversion to C/R/Bs",
+	})
+}
+
+func httpLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.WithFields(log.Fields{
+			"remote-host": r.RemoteAddr,
+		}).Infof("%s %s", r.Method, r.URL.Path)
+		// Call the next handler, which can be another middleware in the chain, or the final handler.
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (pa *PermbotAgent) setupHTTP(listenAddr string) {
+	mux := mux.NewRouter()
+	mux.Use(httpLogger)
+	mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/" {
+			rw.WriteHeader(http.StatusNotFound)
+		}
+		tmpl := htemplate.Must(htemplate.ParseFS(templates, "template/html/index.html"))
+		type innerMsg struct {
+			Owner   string
+			Version string
+		}
+		tmpl.Execute(rw, innerMsg{Owner: pa.ownerRef, Version: app.Version()})
+	}).Methods(http.MethodGet)
+	mux.HandleFunc("/healthz", func(rw http.ResponseWriter, req *http.Request) { rw.WriteHeader(200) }).Methods(http.MethodGet)
+	mux.Handle("/metrics", promhttp.Handler())
+	if listenAddr != "" {
+		go http.ListenAndServe(listenAddr, mux)
+	}
 }
 
 func (pa *PermbotAgent) Run(ctx context.Context) error {
@@ -158,6 +232,29 @@ func rulesRefFromMeta(md *v1.ObjectMeta) string {
 	}
 }
 
+type slackStatus struct {
+	Success bool
+}
+
+func (pa *PermbotAgent) notifySlack(success bool) {
+	if pa.slackWebhookURL == "" {
+		log.Debug("skipping slack notification because: webhook URL not defined")
+		return
+	}
+	st := template.Must(template.New("slack").ParseFS(templates, "template/*.txt"))
+	log.WithField("tmpl", st.DefinedTemplates()).Debug("loaded templates")
+	msgbuf := new(strings.Builder)
+	st.ExecuteTemplate(msgbuf, "slack.txt", slackStatus{Success: success})
+	msg := &slack.WebhookMessage{
+		Username: "Permbot",
+		Text:     msgbuf.String(),
+	}
+	err := slack.PostWebhook(pa.slackWebhookURL, msg)
+	if err != nil {
+		log.WithError(err).Error("unable to post Slack webhook, but I can't really do anything about that")
+	}
+}
+
 func (pa *PermbotAgent) processChangedConfig(ctx context.Context, dryRun bool) error {
 	cm, md, err := pa.getConfigMap(ctx)
 	if err != nil {
@@ -166,6 +263,7 @@ func (pa *PermbotAgent) processChangedConfig(ctx context.Context, dryRun bool) e
 	log.Infof("applying changed configmap with %d projects, %d roles", len(cm.Projects), len(cm.Roles))
 	// FIXME: this should be based on the configmap version/git ref (annotation?)
 	rulesRef := rulesRefFromMeta(md)
+	tStart := time.Now()
 	err = pa.applyGlobalResources(ctx, rulesRef, cm, dryRun)
 	if err != nil {
 		log.WithError(err).Error("unable to apply global roles")
@@ -176,6 +274,9 @@ func (pa *PermbotAgent) processChangedConfig(ctx context.Context, dryRun bool) e
 			log.WithField("namespace", nsc.Namespace).WithError(err).Error("unable to apply namespaced roles")
 		}
 	}
+	tDuration := time.Since(tStart)
+	pa.metrics.applyTime.Observe(float64(tDuration.Seconds()))
+	pa.notifySlack(true)
 	return nil
 }
 
@@ -183,12 +284,16 @@ func (pa *PermbotAgent) processConfig(ctx context.Context, ev watch.EventType) e
 	switch ev {
 	case watch.Deleted:
 		return fmt.Errorf("configmap received deletion event")
-	case watch.Added:
-		fallthrough
-	case watch.Modified:
-		return pa.processChangedConfig(ctx, false)
+	default:
+		// added, modified, ??
+		err := pa.processChangedConfig(ctx, false)
+		if err == nil {
+			pa.metrics.changeCount.WithLabelValues("success").Inc()
+		} else {
+			pa.metrics.changeCount.WithLabelValues("error").Inc()
+		}
+		return err
 	}
-	return nil
 }
 
 func runAgent(cc *cli.Context) error {
@@ -208,6 +313,21 @@ func RunMain() {
 				Aliases: []string{"r"},
 				Flags: []cli.Flag{
 					flagConfigMap,
+					&cli.StringFlag{
+						Name:    flagOwnerRefName,
+						Usage:   "Owner ref to add to created labels",
+						EnvVars: []string{"PERMBOT_OWNER"},
+					},
+					&cli.StringFlag{
+						Name:    flagSlackWebhookURL,
+						Usage:   "Slack webhook to trigger on config change",
+						EnvVars: []string{"SLACK_WEBHOOK"},
+					},
+					&cli.StringFlag{
+						Name:    flagHTTPListenAddress,
+						Usage:   "HTTP Listen address (for OpenMetrics)",
+						EnvVars: []string{"HTTP_LISTEN"},
+					},
 				},
 				Action: runAgent,
 			},
@@ -215,26 +335,21 @@ func RunMain() {
 		Flags: []cli.Flag{
 			cli.VersionFlag,
 			&cli.BoolFlag{
-				Name:    "debug",
+				Name:    flagDebug,
 				Aliases: []string{"d"},
 				Usage:   "Enable debug logs",
 			},
 			&cli.BoolFlag{
-				Name:  "json-logs",
+				Name:  flagJSONLogs,
 				Usage: "Enable JSON log format",
-			},
-			&cli.StringFlag{
-				Name:    flagOwnerRefName,
-				Usage:   "Owner ref to add to created labels",
-				EnvVars: []string{"PERMBOT_OWNER"},
 			},
 		},
 		Before: func(cc *cli.Context) error {
-			if cc.Bool("debug") {
+			if cc.Bool(flagDebug) {
 				log.SetLevel(log.DebugLevel)
+				log.SetReportCaller(true)
 			}
-			log.SetReportCaller(true)
-			if cc.Bool("json-logs") {
+			if cc.Bool(flagJSONLogs) {
 				log.SetFormatter(&log.JSONFormatter{})
 			}
 			return nil
