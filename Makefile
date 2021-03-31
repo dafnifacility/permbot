@@ -14,7 +14,7 @@ permbot:
 	go build -ldflags="-X gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app.PermbotVersion=$(GIT_DESCRIBE)" -o permbot ./cmd/permbot
 
 .PHONY: permbot_agent
-permbot:
+permbot_agent:
 	go build -ldflags="-X gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app.PermbotVersion=$(GIT_DESCRIBE)" -o permbot_agent ./cmd/permbot_agent
 
 .PHONY: test coverage
