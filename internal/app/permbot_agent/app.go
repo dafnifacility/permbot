@@ -338,10 +338,12 @@ func RunMain() {
 				Name:    flagDebug,
 				Aliases: []string{"d"},
 				Usage:   "Enable debug logs",
+				EnvVars: []string{"DEBUG"},
 			},
 			&cli.BoolFlag{
-				Name:  flagJSONLogs,
-				Usage: "Enable JSON log format",
+				Name:    flagJSONLogs,
+				Usage:   "Enable JSON log format",
+				EnvVars: []string{"JSON_LOGS"},
 			},
 		},
 		Before: func(cc *cli.Context) error {
