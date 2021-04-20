@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: permbot-agent
+spec:
+  selector:
+    matchLabels:
+      app: permbot-agent
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2112"
+      labels:
+        app: permbot-agent
+    spec:
+      serviceAccountName: permbot
+      containers:
+      - name: agent
+        envFrom:
+          - configMapRef:
+              name: permbot-agent
+              optional: false
+        image: reg.dafni.rl.ac.uk/dafni/tools/permbot:latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 2112
+        command:
+          - /usr/local/bin/permbot_agent
+          - run

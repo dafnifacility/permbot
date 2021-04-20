@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: permbot
+images:
+  - name: reg.dafni.rl.ac.uk/dafni/tools/permbot
+    newName: reg.dafni.rl.ac.uk/dafni/tools/permbot/feature-incluster
+bases:
+  - manifests

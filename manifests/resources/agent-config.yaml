@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: permbot-agent
+data:
+  HTTP_LISTEN: ":2112"
+  JSON_LOGS: "true"
+  PERMBOT_OWNER: "permbot-kustomized"
