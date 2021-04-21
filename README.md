@@ -19,6 +19,19 @@ the ability to `kubectl exec` into a Pod to be able to view what it's actually d
 Right now this is done by manually creating `Role` and `RoleBinding` objects in specific
 namespaces, but this is not maintainable.
 
+As of version 2.0, Permbot consists of two commands:
+
+* The basic `permbot` command is for debugging and usage within a CI platform.
+  This works by reading in the (TOML) configuration, and outputting the YAML to
+  be created on the Kubernetes cluster. This can be either applied using
+  `kubectl`, or optionally, it can be applied automatically to a Kubernetes
+  cluster (given appropriate permissions)
+* The newer `permbot_agent` command runs like an Operator, inside a Kubernetes
+  cluster. From there, it watches a ConfigMap (by default named `config` in the
+  `permbot` namespace). Whenever a change is detected to the configmap, the
+  corresponding Role/RoleBinding/ClusterRole/ClusterRoleBinding objects are
+  generated, and applied directly.
+
 ## Permbot Usage
 
 Permbot works as follows:
@@ -31,36 +44,27 @@ Permbot works as follows:
 5. Permbot automatically creates/revokes Roles/Rolebindings to match the state of the
    repository via Kubernetes `update` operations.
 
+Permbot "Agent" works the same, however instead of running `permbot` at CI time,
+the merge request CI job should instead update the in-cluster configmap
+containing the TOML, and permbot agent (which has been previously deployed by a
+system administrator) will apply the changes, and report the outcome via Slack.
+
 ### Command-line options
 
-```
-Usage of ./permbot:
-  -debug
-    	Enable debug logging
-  -global
-    	Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding) (default true)
-  -mode string
-    	Mode - either yaml or k8s (default "yaml")
-  -namespace string
-    	Only dump specific namespace - for yaml mode
-  -owner string
-    	Owner value for Kubernetes label (default "permbot")
-  -ref string
-    	Version of input repository to include in rule annotations (dafni.ac.uk/permbot-rules-ref)
-  -version
-    	Exit, only printing Permbot version
-```
+For the "usage" information, run either `permbot` or `permbot_agent` with the
+"help" argument (`-h`).
 
-Note that the `-ref` flag can be used to add a rules "reference" version as an
+Note that the `ref` flag can be used to add a rules "reference" version as an
 annotation to create resources, this can be used to track the (e.g) Git SHA of a
 commit/tag used to perform a deployment.
 
-Additionally, the `-owner` flag can be used to manipulate a label on created objects,
-which could be used to search for objects created by a particular invocation of Permbot.
+Additionally, the `owner` flag can be used to manipulate a label on created objects,
+which could be used to search for objects created by a particular invocation of
+Permbot.
 
 ## Development
 
-This was written by James Hannah in January 2020. Some tasks that still need doing:
+This was written by James Hannah in 2020/2021. Some tasks that still need doing:
 
 - Role Bindings should be automatically emptied/deleted if the project is removed from
   the config file. You can currently remove existing permissions by leaving the project
