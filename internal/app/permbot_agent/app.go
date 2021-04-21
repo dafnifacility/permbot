@@ -128,15 +128,14 @@ func (pa *PermbotAgent) Run(ctx context.Context) error {
 		return err
 	}
 	wi, err := pa.kclient.CoreV1().ConfigMaps(pa.configMapName.Namespace).Watch(ctx, v1.SingleObject(pa.configMapName))
-	if err != nil {
-		return err
-	}
-	for {
+	rc := wi.ResultChan()
+	for err == nil {
 		log.Debug("waiting for configmap change event...")
-		ev := <-wi.ResultChan()
+		ev := <-rc
 		log.WithField("event", ev.Type).Debug("received configmap watch event")
-		pa.processConfig(ctx, ev.Type)
+		err = pa.processConfig(ctx, ev.Type)
 	}
+	return err
 }
 
 func configMapName(rawName string) v1.ObjectMeta {
@@ -241,13 +240,13 @@ func (pa *PermbotAgent) notifySlack(success bool) {
 		log.Debug("skipping slack notification because: webhook URL not defined")
 		return
 	}
-	st := template.Must(template.New("slack").ParseFS(templates, "template/*.txt"))
+	st := template.Must(template.New("slack").ParseFS(templates, "template/slack/*.txt"))
 	log.WithField("tmpl", st.DefinedTemplates()).Debug("loaded templates")
 	msgbuf := new(strings.Builder)
 	st.ExecuteTemplate(msgbuf, "slack.txt", slackStatus{Success: success})
 	msg := &slack.WebhookMessage{
 		Username: "Permbot",
-		Text:     msgbuf.String(),
+		Text:     strings.TrimSpace(msgbuf.String()),
 	}
 	err := slack.PostWebhook(pa.slackWebhookURL, msg)
 	if err != nil {
@@ -267,11 +266,13 @@ func (pa *PermbotAgent) processChangedConfig(ctx context.Context, dryRun bool) e
 	err = pa.applyGlobalResources(ctx, rulesRef, cm, dryRun)
 	if err != nil {
 		log.WithError(err).Error("unable to apply global roles")
+		return err
 	}
 	for _, nsc := range cm.Projects {
 		err = pa.applyNamespacedResources(ctx, rulesRef, cm, nsc.Namespace, dryRun)
 		if err != nil {
 			log.WithField("namespace", nsc.Namespace).WithError(err).Error("unable to apply namespaced roles")
+			return err
 		}
 	}
 	tDuration := time.Since(tStart)
@@ -284,6 +285,8 @@ func (pa *PermbotAgent) processConfig(ctx context.Context, ev watch.EventType) e
 	switch ev {
 	case watch.Deleted:
 		return fmt.Errorf("configmap received deletion event")
+	case watch.Error:
+		return fmt.Errorf("configmap received watch error")
 	default:
 		// added, modified, ??
 		err := pa.processChangedConfig(ctx, false)
