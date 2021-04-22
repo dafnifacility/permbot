@@ -47,6 +47,7 @@ var (
 //go:embed template/*
 var templates embed.FS
 
+// PermbotAgent is the main struct that stores instance data including the Kubernetes config
 type PermbotAgent struct {
 	kclient         *kubernetes.Clientset
 	configMapName   v1.ObjectMeta
@@ -131,9 +132,13 @@ func (pa *PermbotAgent) Run(ctx context.Context) error {
 	rc := wi.ResultChan()
 	for err == nil {
 		log.Debug("waiting for configmap change event...")
-		ev := <-rc
-		log.WithField("event", ev.Type).Debug("received configmap watch event")
-		err = pa.processConfig(ctx, ev.Type)
+		select {
+		case ev := <-rc:
+			log.WithField("event", ev.Type).Debug("received configmap watch event")
+			err = pa.processConfig(ctx, ev.Type)
+		case <-ctx.Done():
+			err = fmt.Errorf("context canceled")
+		}
 	}
 	return err
 }
