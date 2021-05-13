@@ -33,6 +33,10 @@ const (
 	flagJSONLogs          = "json-logs"
 	flagDebug             = "debug"
 	flagHTTPListenAddress = "http-listen"
+	flagNamespace         = "namespace"
+	flagGlobal            = "global"
+	flagRulesRefName      = "ref"
+	flagMode              = "mode"
 )
 
 var (
@@ -41,6 +45,13 @@ var (
 		Aliases: []string{"f"},
 		EnvVars: []string{"PERMBOT_CONFIGMAP"},
 		Value:   "permbot/config",
+	}
+
+	flagOwnerRef = &cli.StringFlag{
+		Name:    flagOwnerRefName,
+		Usage:   "Owner ref to add to created labels",
+		EnvVars: []string{"PERMBOT_OWNER"},
+		Value:   "permbot",
 	}
 )
 
@@ -321,11 +332,7 @@ func RunMain() {
 				Aliases: []string{"r"},
 				Flags: []cli.Flag{
 					flagConfigMap,
-					&cli.StringFlag{
-						Name:    flagOwnerRefName,
-						Usage:   "Owner ref to add to created labels",
-						EnvVars: []string{"PERMBOT_OWNER"},
-					},
+					flagOwnerRef,
 					&cli.StringFlag{
 						Name:    flagSlackWebhookURL,
 						Usage:   "Slack webhook to trigger on config change",
@@ -338,6 +345,50 @@ func RunMain() {
 					},
 				},
 				Action: runAgent,
+			},
+			{
+				Name:      "ci",
+				Usage:     "Run once, output required R/RB/CR/CRB to YAML or persist to K8S",
+				ArgsUsage: "configfile to parse",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  flagMode,
+						Usage: "Whether to dump output to YAML, or try and persist in the K8S API",
+						Value: "yaml",
+					},
+					&cli.StringFlag{
+						Name:  flagNamespace,
+						Usage: "Only dump specific namespace - for yaml mode",
+					},
+					&cli.BoolFlag{
+						Name:  flagGlobal,
+						Usage: "Produce globally-scoped resources (ClusterRole/ClusterRoleBinding), as well as project-scoped ones",
+						Value: true,
+					},
+					&cli.StringFlag{
+						Name:  flagRulesRefName,
+						Usage: "Rules ref - to be added to Kubernetes annotations",
+					},
+					flagOwnerRef,
+					// flagNamespace := flag.String("namespace", "", "Only dump specific namespace - for yaml mode")
+					// flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
+					// flagDebug := flag.Bool("debug", false, "Enable debug logging")
+					// flagOwner := flag.String("owner", "permbot", "Owner value for Kubernetes label")
+					// flagRulesRef := flag.String("ref", "", "Version of input repository to include in rule annotations (dafni.ac.uk/permbot-rules-ref)")
+					// flagVersion := flag.Bool("version", false, "Exit, only printing Permbot version")
+				},
+				Before: func(cc *cli.Context) error {
+					cmode := cc.String(flagMode)
+					switch cmode {
+					case "k8s":
+						fallthrough
+					case "yaml":
+						return nil
+					default:
+						return fmt.Errorf("unknown mode: %s", cmode)
+					}
+				},
+				Action: ciMode,
 			},
 		},
 		Flags: []cli.Flag{
