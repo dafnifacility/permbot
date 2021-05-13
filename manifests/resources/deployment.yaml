@@ -28,6 +28,19 @@ spec:
             cpu: "500m"
         ports:
         - containerPort: 2112
+          name: http
         command:
           - /usr/local/bin/permbot_agent
           - run
+---
+kind: PodMonitor
+apiVersion: monitoring.coreos.com/v1
+metadata:
+  name: permbot-monitor
+spec:
+  podMetricsEndpoints:
+    - path: /metrics
+      port: http
+  selector:
+    matchLabels:
+      app: permbot-agent

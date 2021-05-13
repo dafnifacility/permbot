@@ -24,3 +24,26 @@ subjects:
 - kind: ServiceAccount
   name: permbot
   namespace: permbot
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: permbot-agent
+rules:
+- verbs: ["*"]
+  resources: ["clusterroles","clusterrolebindings","roles","rolebindings"]
+  apiGroups: ["rbac.authorization.k8s.io"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: permbot-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: permbot-agent
+subjects:
+- kind: ServiceAccount
+  name: permbot
+  namespace: permbot
+---
