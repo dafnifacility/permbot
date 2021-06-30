@@ -16,22 +16,22 @@ spec:
     spec:
       serviceAccountName: permbot
       containers:
-      - name: agent
-        envFrom:
-          - configMapRef:
-              name: permbot-agent
-              optional: false
-        image: reg.dafni.rl.ac.uk/dafni/tools/permbot:latest
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 2112
-          name: http
-        command:
-          - /usr/local/bin/permbot_agent
-          - run
+        - name: agent
+          envFrom:
+            - configMapRef:
+                name: permbot-agent
+                optional: false
+          image: reg.dafni.rl.ac.uk/dafni/tools/permbot/dev:latest
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 2112
+              name: http
+          command:
+            - /usr/local/bin/permbot_agent
+            - run
 ---
 kind: PodMonitor
 apiVersion: monitoring.coreos.com/v1
