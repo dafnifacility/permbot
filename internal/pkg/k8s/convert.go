@@ -16,6 +16,10 @@ import (
 const (
 	roleName  = "permbot-auto-role"
 	ownerName = "permbot"
+
+	AnnotationRulesRef = "dafni.ac.uk/permbot-rules-ref"
+	AnnotationVersion  = "dafni.ac.uk/permbot-version"
+	LabelOwnerName     = "dafni.ac.uk/permbot-owner"
 )
 
 // objectAnnotations returns the default annotations to be added to all created objects,
@@ -25,10 +29,10 @@ const (
 // version of input config used to generate the rules (if non-empty).
 func objectAnnotations(rulesRef string) map[string]string {
 	annotations := map[string]string{
-		"dafni.ac.uk/permbot-version": app.Version(),
+		AnnotationVersion: app.Version(),
 	}
 	if rulesRef != "" {
-		annotations["dafni.ac.uk/permbot-rules-ref"] = rulesRef
+		annotations[AnnotationRulesRef] = rulesRef
 	}
 	return annotations
 }
@@ -36,7 +40,7 @@ func objectAnnotations(rulesRef string) map[string]string {
 // objectLabels returns the default labels to be added to all created objects.
 func objectLabels(ownerName string) map[string]string {
 	return map[string]string{
-		"dafni.ac.uk/permbot-owner": ownerName,
+		LabelOwnerName: ownerName,
 	}
 }
 

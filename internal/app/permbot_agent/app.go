@@ -228,7 +228,7 @@ func rulesRefFromMeta(md *v1.ObjectMeta) string {
 	if md == nil {
 		return "unknown"
 	}
-	mdlabel := md.Annotations["dafni.ac.uk/permbot-rules-ref"]
+	mdlabel := md.Annotations[k8s.AnnotationRulesRef]
 	if mdlabel != "" {
 		return mdlabel
 	} else {
@@ -262,10 +262,15 @@ func (pa *PermbotAgent) notifySlack(success bool) {
 func (pa *PermbotAgent) processChangedConfig(ctx context.Context, dryRun bool) error {
 	cm, md, err := pa.getConfigMap(ctx)
 	if err != nil {
-		return err
+		// We failed to parse the configmap, so we should skip it and move on?
+		log.WithError(err).WithFields(log.Fields{}).Warning("failed to parse permbot config")
+		pa.notifySlack(false)
+		pa.metrics.changeCount.WithLabelValues("config-error").Inc()
+		// TODO: we could maybe annotate the failing configmap here with the error (and clear it on success), but maybe we'd get in a loop?
+		// We don't return an error here, because it'd make the app crashloop - just return nil and we'll assume it'll get fixed at some point
+		return nil
 	}
 	log.Infof("applying changed configmap with %d projects, %d roles", len(cm.Projects), len(cm.Roles))
-	// FIXME: this should be based on the configmap version/git ref (annotation?)
 	rulesRef := rulesRefFromMeta(md)
 	tStart := time.Now()
 	err = pa.applyGlobalResources(ctx, rulesRef, cm, dryRun)

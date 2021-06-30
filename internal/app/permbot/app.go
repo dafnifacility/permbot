@@ -27,7 +27,7 @@ func RunMain() {
 	flagGlobal := flag.Bool("global", true, "Also create/display globally scoped resources (ClusterRole/ClusterRoleBinding)")
 	flagDebug := flag.Bool("debug", false, "Enable debug logging")
 	flagOwner := flag.String("owner", "permbot", "Owner value for Kubernetes label")
-	flagRulesRef := flag.String("ref", "", "Version of input repository to include in rule annotations (dafni.ac.uk/permbot-rules-ref)")
+	flagRulesRef := flag.String("ref", "", fmt.Sprintf("Version of input repository to include in rule annotations (%s)", k8s.AnnotationRulesRef))
 	flagVersion := flag.Bool("version", false, "Exit, only printing Permbot version")
 	flag.Parse()
 	if *flagDebug {
