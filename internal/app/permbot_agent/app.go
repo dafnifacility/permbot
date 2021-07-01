@@ -21,6 +21,7 @@ import (
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/app"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/internal/pkg/k8s"
 	"gitlab.dafni.rl.ac.uk/dafni/tools/permbot/pkg/types"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -206,8 +207,12 @@ func (pa *PermbotAgent) applyNamespacedResources(ctx context.Context, rulesRef s
 	// Check if the namespace exists first
 	_, err := pa.kclient.CoreV1().Namespaces().Get(ctx, ns, v1.GetOptions{})
 	if err != nil {
-		nlog.WithError(err).Warning("unable to get namespace, skipping this project")
-		return nil
+		if apierrors.IsNotFound(err) {
+			nlog.WithError(err).Warning("namespace doesn't exist, skipping this project")
+			return nil
+		}
+		// Problem getting namespace, but it wasn't "not found"
+		return err
 	}
 	nsr, nsrb, err := k8s.CreateResourcesForNamespace(cm, ns, rulesRef, pa.ownerRef)
 	if err != nil {
