@@ -126,6 +126,7 @@ func (pa *PermbotAgent) setupHTTP(listenAddr string) {
 
 func (pa *PermbotAgent) Run(ctx context.Context) error {
 	if _, _, err := pa.getConfigMap(ctx); err != nil {
+		// We try once to parse the configuration on startup, but if it's invalid, we crash here.
 		return err
 	}
 	wi, err := pa.kclient.CoreV1().ConfigMaps(pa.configMapName.Namespace).Watch(ctx, v1.SingleObject(pa.configMapName))
@@ -133,7 +134,11 @@ func (pa *PermbotAgent) Run(ctx context.Context) error {
 	for err == nil {
 		log.Debug("waiting for configmap change event...")
 		select {
-		case ev := <-rc:
+		case ev, ok := <-rc:
+			if !ok {
+				log.Debug("watch channel was closed, will exit")
+				return fmt.Errorf("configmap watch channel closed")
+			}
 			log.WithField("event", ev.Type).Debug("received configmap watch event")
 			err = pa.processConfig(ctx, ev.Type)
 		case <-ctx.Done():
