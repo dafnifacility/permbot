@@ -203,6 +203,12 @@ func (pa *PermbotAgent) applyGlobalResources(ctx context.Context, rulesRef strin
 
 func (pa *PermbotAgent) applyNamespacedResources(ctx context.Context, rulesRef string, cm *types.PermbotConfig, ns string, dryRun bool) error {
 	nlog := log.WithField("namespace", ns)
+	// Check if the namespace exists first
+	_, err := pa.kclient.CoreV1().Namespaces().Get(ctx, ns, v1.GetOptions{})
+	if err != nil {
+		nlog.WithError(err).Warning("unable to get namespace, skipping this project")
+		return nil
+	}
 	nsr, nsrb, err := k8s.CreateResourcesForNamespace(cm, ns, rulesRef, pa.ownerRef)
 	if err != nil {
 		return err
