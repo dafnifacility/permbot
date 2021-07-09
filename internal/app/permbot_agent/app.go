@@ -153,7 +153,7 @@ func configMapName(rawName string) v1.ObjectMeta {
 	p := strings.SplitN(rawName, "/", 2)
 	if len(p) == 1 {
 		return v1.ObjectMeta{Namespace: "default", Name: p[0]}
-	}
+	}	
 	return v1.ObjectMeta{Namespace: p[0], Name: p[1]}
 }
 

@@ -30,7 +30,9 @@ type Role struct {
 
 // Rule is a specific rule allowed as part of a Role/ClusterRole
 type Rule struct {
-	APIGroups []string `toml:"apiGroups" json:"apiGroups"`
-	Resources []string `toml:"resources" json:"resources"`
-	Verbs     []string `toml:"verbs" json:"verbs"`
+	APIGroups       []string `toml:"apiGroups,omitempty" json:"apiGroups,omitempty"`
+	Resources       []string `toml:"resources,omitempty" json:"resources,omitempty"`
+	ResourceNames   []string `toml:"resourceNames,omitempty" json:"resourceNames,omitempty"`
+	Verbs           []string `toml:"verbs" json:"verbs"`
+	NonResourceURLS []string `toml:"nonResourceURLs,omitempty" json:"nonResourceURLs,omitempty"`
 }
